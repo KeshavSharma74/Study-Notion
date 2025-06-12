@@ -207,7 +207,7 @@ const login = async(req,res) =>{
 
 const changePassword = async(req,res) =>{
 
-try {
+    try {
         const {oldPassword,newPassword,confirmPassword} = req.body;
     
         if(!oldPassword || !newPassword || !confirmPassword){
