@@ -2,6 +2,10 @@ const User=require("../models/User.js");
 const OTP=require("../models/OTP.js");
 const otpGenerator = require("otp-generator");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const {mailSender} = require("../utils/mailSender.js")
+require("dotenv").config();
+
 
 const sendOTP = async(req,res) =>{
     try{
@@ -106,7 +110,7 @@ const signup = async(req,res) =>{
                 })
             }
         
-            const hashedPassword=await bcrypt(password,10);
+            const hashedPassword=await bcrypt.hash(password,10);
         
             const profileDetails = await Profile.create({
                 gender:null,
@@ -140,6 +144,116 @@ const signup = async(req,res) =>{
 
 }
 
+const login = async(req,res) =>{
+    try {
+        const {email,password} = req.body;
+        
+        if(!email || !password){
+            return res.status(401).json({
+                success:false,
+                message:"Email and password both are required..!!!"
+            })
+        }
 
+        const user=await User.findOne({email});
+        if(!user){
+            res.status(401).json({
+                success:false,
+                message:"email does not exists..!!!"
+            })
+        }
 
-module.exports = {sendOTP,signup}
+        if(await bcrypt.compare(password,user.password)){
+            const payLoad = {
+                email:user.email,
+                id:user._id,
+                accountType:user.accountType
+            }
+
+            const token=jwt.sign(payLoad,process.env.JWT_TOKEN,{
+                expiresIn:"2h"
+            });
+
+            user.token=token;
+            user.password=undefined;
+
+            const options = {
+                expires: new Date(Date.now() + 3*24*60*60*1000),
+                httpOnly:true
+            }
+
+            res.cookie("token",token,options).status(200).json({
+                success:true,
+                token,
+                user,
+                message:"Logged in successfully..!!!"
+            })
+
+        }
+        else{
+            return res.status(401).json({
+                success:false,
+                message:"Password is incorrect..!!!"
+            })
+        }
+    }
+    catch(error) {
+        return res.status(500).json({
+            success:false,
+            message:"User cannot be login..!!!"
+        })
+    }
+}
+
+const changePassword = async(req,res) =>{
+
+try {
+        const {oldPassword,newPassword,confirmPassword} = req.body;
+    
+        if(!oldPassword || !newPassword || !confirmPassword){
+            return res.status(401).json({
+                success:false,
+                message:"oldPassword, newPassword and confirmPassword all are required..!!!"
+            })
+        }
+    
+        if(newPassword!==confirmPassword){
+            return res.status(401).json({
+                success:false,
+                message:"newPassword and confirmPassword does not match..!!!"
+            })
+        }
+    
+        const user=req.user;
+        if(await bcrypt.compare(oldPassword,user.password)){
+            user.password = await bcrypt.hash(newPassword,10);
+        
+            await user.save();
+        
+            mailSender()
+
+            return res.status(200).json({
+                success:true,
+                message:"Password changed and otp sent successfully..!!!"
+            })
+
+        }
+        else{
+            return res.status(500).json({
+                success:false,
+                message:""
+            })
+        }
+
+    
+
+} catch (error) {
+    return res.status(500).json({
+        success:false,
+        message:"Password cannot be changed..!!!"
+    })
+}
+
+}
+
+module.exports = {sendOTP,signup,login}
