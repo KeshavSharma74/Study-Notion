@@ -256,4 +256,4 @@ try {
 
 }
 
-module.exports = {sendOTP,signup,login}
+module.exports = {sendOTP,signup,login,changePassword}
